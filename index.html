@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            margin:0;
+            background:black;
+        }
+        body,html,video,div{
+            width:100%;
+            height:100%;
+        }
+        video, .vid {
+            position: absolute;
+            left:0;
+            right:0;
+            bottom:0;
+            top:0;
+            background-color:black;
+            opacity:0;
+        }
+        div {
+            background-position: center;
+            background-size: contain;
+            background-repeat: no-repeat;
+            opacity:0;
+        }
+
+    </style>
+    <script>
+        const vids = [
+                /*
+                    ==========================================
+
+
+
+
+                    Для добавления слайда, необходимо в массив vids добавить объект в формате:
+
+                    1. Для изображений
+                    {name: "02.png"}
+
+                    где name путь к слайду в папке vids
+
+                    2. Для видео
+                    {name: "01.mp4", loop:true, volume:0.01},
+
+                    где name путь к слайду в папке vids, loop - зацикливание, volume - громкость (значение должно быть всегда больше 0, чтобы выключить громкость, можно поставить 0.01)
+
+                    Управление:
+
+                    Переключение слайдов - Left/Right
+                    В начало презентации - q
+                    Если текущий слайд видео:
+                    Вперед на 5 секунд - n
+                    Назад на 5 секунд - b
+                    В начало видео - s
+                    Увеличить громкость - . (Точка)
+                    Уменьшить громкость - , (Запятая)
+                    Остановить/запустить - Пробел
+
+                    Внимание: первый слайд всегда черный, чтобы попасть на свой первый слайд, нужно нажать стрелку вправо
+                    ==========================================
+
+                */
+
+                
+               {name:"01.png"},
+               {name:"02.png"},
+               {name:"03.png"},
+        ];
+
+        let currentSlide;
+        
+        window.addEventListener("DOMContentLoaded", e => {
+
+            document.addEventListener('dblclick', e => {
+                if (!document.fullscreenElement) { 
+                    document.body.requestFullscreen();
+                    document.body.style.cursor = "none";
+                }
+                else {
+                    document.exitFullscreen();
+                    document.body.style.cursor = "default";
+                }
+            });
+
+            let moveTimout;
+            let moveStartTime;
+            document.addEventListener('mousemove', e => {
+                clearTimeout(moveTimout);
+                if (document.fullscreenElement) { 
+                    if(!moveStartTime) moveStartTime = performance.now();
+                    if( performance.now() - moveStartTime > 1000 ){
+                        document.body.style.cursor = "default";
+                        moveStartTime = null;
+                    }
+                    moveTimout = setTimeout( () => {
+                        document.body.style.cursor = "none";
+                    },3000);
+                }
+                else document.body.style.cursor = "default";
+            });
+            let page = location.hash.replace("#","");
+            let slideIndex =  page ? page-1 : -1;
+            let vidElements = [];
+
+            vids.reverse().forEach( vid => {
+               
+                if(vid.name.match(/png|jpg|jpeg|gif$/)){
+                    
+                    const imgElement = document.createElement('div');
+                    imgElement.classList.add("vid");
+                    imgElement.style.backgroundImage = `url(vids/${vid.name.replaceAll(" ", "%20")})`;
+                    document.body.append(imgElement);
+                    vidElements.push(imgElement);
+                }
+                else {
+                    const vidElement = document.createElement('video');
+                    vidElement.setAttribute('src', `vids/${vid.name}`);
+                    if( vid.loop ) vidElement.setAttribute('loop', true);
+                    if(vid.skip) {
+                        vidElement.dataset.skip = vid.skip;
+                        vidElement.currentTime = vid.skip;
+                    }
+                    if(vid.volume) vidElement.volume = vid.volume;
+                    if(vid.stop) vidElement.setAttribute("data-stop",true);
+                    document.body.append(vidElement);
+                    vidElements.push(vidElement);
+
+                    if(vid.skip_end){
+                        vidElement.addEventListener('timeupdate', e => {
+                            if(vidElement.currentTime > vidElement.duration - vid.skip_end) {
+                                vidElement.pause();
+                                if( vid.loop ){
+                                    if(vid.skip) vidElement.currentTime = vid.skip;
+                                    vidElement.play();
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+
+            if(slideIndex > 0) next();
+
+            document.addEventListener('keydown', e=>{
+              // console.log(e);
+              if(e.key === "q" || e.key === "й" ){
+                       location.href = "index.html";
+                    }
+               if(currentSlide && currentSlide.tagName.toLowerCase() === "video"){
+                   if(e.key === "n" || e.key === "т" ) currentSlide.currentTime += 5;
+                   if(e.key === "b" || e.key === "и" ) currentSlide.currentTime -= 5;
+                   if(e.key === "s" || e.key === "ы" ) currentSlide.currentTime = 0;
+                   if(e.key === "." || e.key === "ю" ) currentSlide.volume = Math.min(currentSlide.volume + 0.1, 1);
+                   if(e.key === "," || e.key === "б" ) currentSlide.volume = Math.max(currentSlide.volume - 0.1, 0);
+                   if(e.code === "Space" && (currentSlide.paused || currentSlide.currentTime === 0)) currentSlide.play();
+                   else if(e.code === "Space" && !currentSlide.paused) currentSlide.pause();
+                   
+               }
+                if(e.key === "ArrowRight" || e.key === "PageDown"){
+                    next();
+                }
+                else if(e.key === "ArrowLeft" || e.key === "PageUp"){
+                    prev();
+                }
+            });
+
+            function next(){
+                slideIndex++;
+                loadSlide();
+            }
+
+            function prev(){
+                slideIndex--;
+                loadSlide();
+            }
+
+            function loadSlide(){
+
+                if(slideIndex > vidElements.length - 1) slideIndex = vidElements.length - 1;
+                if(slideIndex < 0) slideIndex = 0;
+
+                vidElements.slice().reverse().forEach( (vidElement, index) => {
+                    if( index === slideIndex ) {
+                        vidElement.style.opacity = 1;
+                        location.hash = slideIndex;
+                        currentSlide = vidElement;
+                        if(vidElement.tagName.toLowerCase() === "video" && !vidElement.getAttribute("data-stop")) vidElement.play();
+                    }
+                    else {
+                        vidElement.style.opacity = 0;
+                        if(vidElement.tagName.toLowerCase() === "video"){
+                            vidElement.pause();
+                            vidElement.currentTime = 0;
+                            if(vidElement.dataset.skip) vidElement.currentTime = vidElement.dataset.skip;
+                        }
+                    }
+                });
+            }
+            
+        });
+    </script>
+</head>
+<body>
+
+</body>
+</html>
